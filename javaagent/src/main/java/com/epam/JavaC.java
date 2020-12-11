@@ -1,6 +1,9 @@
 package com.epam;
 
 import javassist.*;
+import javassist.expr.ExprEditor;
+import javassist.expr.MethodCall;
+import javassist.expr.NewExpr;
 
 import java.io.IOException;
 import java.lang.instrument.ClassFileTransformer;
@@ -34,10 +37,23 @@ public class JavaC implements ClassFileTransformer {
 //                        }
 //                );
 
-                for (CtMethod declaredMethod : ctClass.getDeclaredMethods()) {
-                    declaredMethod.insertBefore("long a = System.nanoTime();");
-                    declaredMethod.insertAfter("logger.warn(\"Method worked \" + (System.nanoTime() - a));");
-                }
+                Arrays.stream(ctClass.getDeclaredMethods()).forEach(e->{
+                    try {
+                        e.instrument(new ExprEditor(){
+                            @Override
+                            public void edit(MethodCall e) throws CannotCompileException {
+                               e.replace("{ System.out.println(\"Hello\"); $_ = $proceed($$); logger.warn($_); }");
+                            }
+                        });
+                    } catch (CannotCompileException cannotCompileException) {
+                        cannotCompileException.printStackTrace();
+                    }
+
+                });
+//                for (CtMethod declaredMethod : ctClass.getDeclaredMethods()) {
+//                    declaredMethod.insertBefore("long a = System.nanoTime();");
+//                    declaredMethod.insertAfter("logger.warn(\"Method worked \" + (System.nanoTime() - a));");
+//                }
 
                 return ctClass.toBytecode();
 

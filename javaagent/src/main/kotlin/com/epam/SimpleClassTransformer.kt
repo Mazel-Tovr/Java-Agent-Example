@@ -1,12 +1,13 @@
 package com.epam
 
 import javassist.*
-import org.slf4j.*
+import javassist.expr.ExprEditor
+import javassist.expr.MethodCall
+import org.slf4j.LoggerFactory
 import java.io.ByteArrayInputStream
-import java.lang.Exception
-import java.lang.instrument.*
-import java.security.*
-import java.util.concurrent.atomic.*
+import java.lang.instrument.ClassFileTransformer
+import java.security.ProtectionDomain
+import java.util.concurrent.atomic.AtomicInteger
 
 class SimpleClassTransformer : ClassFileTransformer {
 
@@ -25,54 +26,93 @@ class SimpleClassTransformer : ClassFileTransformer {
     ): ByteArray {
 
         val clazzName = className?.replace("/".toRegex(), ".")
-//        if (!className!!.startsWith("com.epam")) return classfileBuffer!!
-
 //        logger.info("This class $clazzName was loaded. Count of classes ${classCounter.getAndIncrement()}")
 
-
         if (clazzName!!.startsWith("com.epam.Printer")) {
-            logger.info(className)
-            val pool: ClassPool = ClassPool.getDefault()
-            /// val ctClass = pool.get(clazzName)
-            val ctClass = pool.makeClass(ByteArrayInputStream(classfileBuffer))
-            ctClass.declaredMethods.forEach { logger.info(it.toString()) }
 
-//            ctClass.declaredMethods.forEach {
-//                it.insertBefore("logger.warn(\"Inset into byte code before\");")
-//                it.insertAfter("logger.warn(\"Inset into byte code after\");")
-//            }
-//
+            val pool: ClassPool = ClassPool.getDefault()
+            val ctClass = pool.makeClass(ByteArrayInputStream(classfileBuffer))
+
+            /*region add profiler*/
+            for (method in ctClass.declaredMethods) {
+                method.run {
+                    instrument(object : ExprEditor() {
+                        override fun edit(expr: MethodCall) {
+                            expr.replace("{ long a = System.nanoTime(); \$_ = \$proceed(\$\$); logger.info(\"Method worked \"+(System.nanoTime()-a));}")
+                        }
+                    })
+                }
+            }
+            /*endregion*/
+
+            /*region generate new method*/
+            val ctMethod: CtMethod = CtNewMethod.make(
+                """public void generatedMethod(){
+                |logger.info("Hello from generated method");
+                |}""".trimMargin(), ctClass
+            )
+            ctClass.addMethod(ctMethod)
+            /*endregion*/
+
+            /*region add field*/
+//           val constantValue = ctClass.getField("constantValue")
+//           val variableValue = ctClass.getField("variableValue")
+            val fieldName = "extraClass";
+            val ctField = CtField.make("private com.epam.ExtraClass $fieldName = new com.epam.ExtraClass();", ctClass)
+            ctClass.addField(ctField)
 
             ctClass.declaredMethods.forEach {
-                it.insertBefore("long a = System.nanoTime();logger.warn(\"Inset into byte code before \"+ a);")
-                it.insertAfter(
-                    "long b = System.nanoTime() - a; logger.warn(\"Method worked \" + b);"
-                )
+                it.insertAfter("$fieldName.addElement(new Throwable().getStackTrace()[0].getMethodName());")
             }
 
-//            for (method in ctClass.declaredMethods) {
-//                method.setBody("""{
-//                    |long a = System.nanoTime();
-//                    |System.out.println(\"I am new body eeeeee\");
-//                    |System.out.println(\"Method worked\" + (System.nanoTime() - a));
-//                    |}""".trimMargin())
-////                method.insertBefore("long a = System.nanoTime();")
-////                method.insertAfter("System.out.println(\"Method worked\" + (System.nanoTime() - a));")
-//            }
-            ctClass.fields.forEach {
-                logger.info(it.toString())
-            }
-            val a = ctClass.getField("variableValue");
+            /*endregion*/
 
-            logger.error(a.toString())
-//            ctClass.let { clazz ->
-//                logger.info("\n Class $clazzName contains fields = ${clazz.fields};\n Methods = ${clazz.methods};\n Count of project classes ${countProjectClasses.getAndIncrement()}")
-//            }
+            val ctMethod2: CtMethod = CtNewMethod.make(
+                """public void generatedMethod2(){
+                |$fieldName.printList();
+                |}""".trimMargin(), ctClass
+            )
+            ctClass.addMethod(ctMethod2)
+
+
             return ctClass.toBytecode()
         }
 
-
         return classfileBuffer!!
+    }
+
+    fun generateClass(classPool: ClassPool): CtClass {
+
+        val generatedClass = classPool.makeClass("GeneratedClass")
+
+        generatedClass.addField(
+            CtField.make(
+                "private org.slf4j.Logger logger = LoggerFactory.getLogger(GeneratedClass.class);",
+                generatedClass
+            )
+        )
+        generatedClass.addField(CtField.make("private Sting value = null;", generatedClass))
+
+        generatedClass.addConstructor(
+            CtNewConstructor.make(
+                """
+            public GeneratedClass(String value){
+            this.value = value;
+            }
+        """.trimIndent(), generatedClass
+            )
+        )
+        generatedClass.addMethod(
+            CtMethod.make(
+                """
+            private void invokeGenMethod(){
+                logger.info(value);
+            }
+        """.trimIndent(), generatedClass
+            )
+        )
+
+        return generatedClass
     }
 
 }

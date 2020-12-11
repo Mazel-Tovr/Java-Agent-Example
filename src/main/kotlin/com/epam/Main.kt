@@ -2,20 +2,19 @@ package com.epam
 
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import java.lang.Exception
 
 private val logger: Logger = LoggerFactory.getLogger("Main")
 
 fun main() {
     try {
-        println("Hello main from app")
-        // val workingWithCollections = WorkingWithCollections()
-        // workingWithCollections.list.forEach { logger.info(it.toString()) }
+        println("Hello from  main app")
         val printer = Printer()
         printer.printVariable()
         printer.printTest()
         printer.printConstant()
-    }catch (ex: Exception){
+        printer.javaClass.getMethod("generatedMethod").invoke(printer)
+        printer.javaClass.getMethod("generatedMethod2").invoke(printer)
+    } catch (ex: Exception) {
         println(ex)
     }
 
