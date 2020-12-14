@@ -1,9 +1,11 @@
 package com.epam;
 
-import javassist.*;
+import javassist.CannotCompileException;
+import javassist.ClassPool;
+import javassist.CtClass;
+import javassist.NotFoundException;
 import javassist.expr.ExprEditor;
 import javassist.expr.MethodCall;
-import javassist.expr.NewExpr;
 
 import java.io.IOException;
 import java.lang.instrument.ClassFileTransformer;
@@ -16,26 +18,12 @@ public class JavaC implements ClassFileTransformer {
     public byte[] transform(ClassLoader loader, String className, Class<?> classBeingRedefined, ProtectionDomain protectionDomain, byte[] classfileBuffer) throws IllegalClassFormatException {
 
         String clazzName = className.replaceAll("/", ".");
-//        if (!className!!.startsWith("com.epam")) return classfileBuffer!!
-
-//        logger.info("This class $clazzName was loaded. Count of classes ${classCounter.getAndIncrement()}")
-
+        ClassPool classPool = ClassPool.getDefault();
 
         if (clazzName.startsWith("com.epam.Printer")) {
 
-            ClassPool classPool = ClassPool.getDefault();
             try {
                 CtClass ctClass = classPool.get(className);
-//                Arrays.stream(ctClass.getDeclaredMethods()).forEach(e ->
-//                        {
-//                            try {
-//                                e.insertBefore("long a = System.nanoTime();");
-//                                e.insertAfter("logger.warn(\"Method worked \" + (System.nanoTime() - a));");
-//                            } catch (CannotCompileException cannotCompileException) {
-//                                cannotCompileException.printStackTrace();
-//                            }
-//                        }
-//                );
 
                 Arrays.stream(ctClass.getDeclaredMethods()).forEach(e->{
                     try {
@@ -50,11 +38,6 @@ public class JavaC implements ClassFileTransformer {
                     }
 
                 });
-//                for (CtMethod declaredMethod : ctClass.getDeclaredMethods()) {
-//                    declaredMethod.insertBefore("long a = System.nanoTime();");
-//                    declaredMethod.insertAfter("logger.warn(\"Method worked \" + (System.nanoTime() - a));");
-//                }
-
                 return ctClass.toBytecode();
 
             } catch (NotFoundException | CannotCompileException | IOException e) {
@@ -62,6 +45,17 @@ public class JavaC implements ClassFileTransformer {
             }
 
         }
+
+        if (clazzName.startsWith("com.epam.TestDoable")){
+            CtClass ctClass = new SimpleClassTransformer().generateTestClass(classPool);
+            try {
+                ctClass.toClass(loader,protectionDomain);
+            } catch (CannotCompileException e) {
+                e.printStackTrace();
+            }
+        }
+
+
         return classfileBuffer;
     }
 }

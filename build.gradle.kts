@@ -8,6 +8,11 @@ version = "1.0-SNAPSHOT"
 
 repositories {
     mavenCentral()
+    maven(url = "http://oss.jfrog.org/oss-release-local")
+    gradlePluginPortal()
+    jcenter()
+    maven(url = "https://dl.bintray.com/kotlin/kotlinx/")
+    maven(url = "https://oss.jfrog.org/artifactory/list/oss-release-local")
 }
 
 dependencies {
@@ -22,7 +27,7 @@ dependencies {
 application {
     mainClassName = "com.epam.MainKt"
     applicationDefaultJvmArgs =
-        listOf("-javaagent:D:\\GitHub\\Temp\\Java-Agent-Example\\javaagent\\build\\libs\\JavaAgent-1.0-SNAPSHOT.jar")
+        listOf("-javaagent:javaagent\\build\\libs\\JavaAgent-1.0-SNAPSHOT.jar")
 }
 val task = task("Sleep time") {
     didWork =false
@@ -30,6 +35,7 @@ val task = task("Sleep time") {
     didWork=true
 }
 
+//TODO Remove this task 
 task("StartApp") {
     group = "application"
     dependsOn(task)

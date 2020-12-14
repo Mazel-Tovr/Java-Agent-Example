@@ -25,15 +25,15 @@ class SimpleClassTransformer : ClassFileTransformer {
         classfileBuffer: ByteArray?
     ): ByteArray {
 
-        val clazzName = className?.replace("/".toRegex(), ".")
-//        logger.info("This class $clazzName was loaded. Count of classes ${classCounter.getAndIncrement()}")
+        val clazzName = className!!.replace("/".toRegex(), ".")
 
-        if (clazzName!!.startsWith("com.epam.Printer")) {
+        val pool: ClassPool = ClassPool.getDefault()
 
-            val pool: ClassPool = ClassPool.getDefault()
+        if (clazzName.startsWith("com.epam.Printer")) {
+
             val ctClass = pool.makeClass(ByteArrayInputStream(classfileBuffer))
 
-            /*region add profiler*/
+
             for (method in ctClass.declaredMethods) {
                 method.run {
                     instrument(object : ExprEditor() {
@@ -43,37 +43,46 @@ class SimpleClassTransformer : ClassFileTransformer {
                     })
                 }
             }
-            /*endregion*/
 
-            /*region generate new method*/
-            val ctMethod: CtMethod = CtNewMethod.make(
-                """public void generatedMethod(){
+            ctClass.addMethod(
+                CtNewMethod.make(
+                    """public void generatedMethod(){
                 |logger.info("Hello from generated method");
                 |}""".trimMargin(), ctClass
+                )
             )
-            ctClass.addMethod(ctMethod)
-            /*endregion*/
 
-            /*region add field*/
-//           val constantValue = ctClass.getField("constantValue")
-//           val variableValue = ctClass.getField("variableValue")
             val fieldName = "extraClass";
             val ctField = CtField.make("private com.epam.ExtraClass $fieldName = new com.epam.ExtraClass();", ctClass)
             ctClass.addField(ctField)
 
             ctClass.declaredMethods.forEach {
-                it.insertAfter("$fieldName.addElement(new Throwable().getStackTrace()[0].getMethodName());")
+                it.insertAfter("$fieldName.addElement(\"${it.name}\");")
             }
 
-            /*endregion*/
-
-            val ctMethod2: CtMethod = CtNewMethod.make(
-                """public void generatedMethod2(){
+            ctClass.addMethod(
+                CtNewMethod.make(
+                    """public void generatedMethod2(){
                 |$fieldName.printList();
                 |}""".trimMargin(), ctClass
+                )
             )
-            ctClass.addMethod(ctMethod2)
 
+            return ctClass.toBytecode()
+        }
+
+        if (clazzName.startsWith("com.epam.ImpleUse")) {
+
+            val clazz = generateTestClass(pool).toClass(loader, protectionDomain)//adding class to class path
+
+            val ctClass = pool.makeClass(ByteArrayInputStream(classfileBuffer))
+
+            ctClass.constructors.first().setBody(
+                """{
+                |this.doable = new ${clazz.name}();
+                |}
+            """.trimMargin()
+            )
 
             return ctClass.toBytecode()
         }
@@ -81,37 +90,42 @@ class SimpleClassTransformer : ClassFileTransformer {
         return classfileBuffer!!
     }
 
-    fun generateClass(classPool: ClassPool): CtClass {
+    fun generateTestClass(classPool: ClassPool): CtClass {
 
-        val generatedClass = classPool.makeClass("GeneratedClass")
-
+        val generatedClass = classPool.makeClass("DoableGeneratedImpl")
+        generatedClass.interfaces = arrayOf(classPool.get("com.epam.IDoable"))
         generatedClass.addField(
             CtField.make(
-                "private org.slf4j.Logger logger = LoggerFactory.getLogger(GeneratedClass.class);",
+                "private org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(DoableGeneratedImpl.class);",
                 generatedClass
-            )
-        )
-        generatedClass.addField(CtField.make("private Sting value = null;", generatedClass))
-
-        generatedClass.addConstructor(
-            CtNewConstructor.make(
-                """
-            public GeneratedClass(String value){
-            this.value = value;
-            }
-        """.trimIndent(), generatedClass
             )
         )
         generatedClass.addMethod(
             CtMethod.make(
-                """
-            private void invokeGenMethod(){
-                logger.info(value);
-            }
-        """.trimIndent(), generatedClass
+                """public void printInfo() {
+            |logger.info("Hello from " + DoableGeneratedImpl.class);
+            |}
+        """.trimMargin(), generatedClass
             )
         )
 
+        generatedClass.addMethod(
+            CtMethod.make(
+                """public int calculate(int a, int b) {
+            | return a * b;
+            | }
+        """.trimMargin(), generatedClass
+            )
+        )
+
+        generatedClass.addMethod(
+            CtMethod.make(
+                """public void printInput(String input) {
+            |logger.info("Input from generated class: " + input);
+            |}
+        """.trimMargin(), generatedClass
+            )
+        )
         return generatedClass
     }
 

@@ -11,9 +11,9 @@ public class Main {
     public static void premain(String args, Instrumentation instrumentation) {
         try {
             instrumentation.addTransformer(new SimpleClassTransformer());
-            //instrumentation.addTransformer(new JavaC());
+            // instrumentation.addTransformer(new JavaC());
         } catch (Exception ex) {
-            System.out.println(ex);
+            ex.printStackTrace();
         }
 
     }
